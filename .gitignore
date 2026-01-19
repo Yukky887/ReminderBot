@@ -24,9 +24,10 @@ env/
 # Logs
 *.log
 
-# dotenv / env files
+
 .env
 .env.* 
+
 
 # Docker
 *.pid
