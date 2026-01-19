@@ -1,0 +1,4 @@
+aiogram==3.7.0
+SQLAlchemy[asyncio]==2.0.22
+asyncpg>=0.31.0,<1.0
+python-dotenv
