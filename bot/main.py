@@ -7,6 +7,11 @@ from bot.config import BOT_TOKEN
 from bot.db.base import engine, Base
 from bot.handlers.start import router as start_router
 
+from bot.handlers.payments import payments_router 
+from bot.handlers.admin_payments import admin_payments_router
+from bot.handlers.admin import admin_router  
+
+
 import asyncio
 import asyncpg
 from bot.config import DATABASE_URL
@@ -40,6 +45,10 @@ async def main():
     dp = Dispatcher()
 
     dp.include_router(start_router)
+    dp.include_router(payments_router)
+    dp.include_router(admin_payments_router)
+    dp.include_router(admin_router)
+
 
     print("Bot started, polling...")
     await dp.start_polling(bot)

@@ -16,3 +16,6 @@ DATABASE_URL = (
     f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}"
     f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 )
+
+def is_admin(telegram_id: int) -> bool:
+    return telegram_id == ADMIN_ID

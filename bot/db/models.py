@@ -6,7 +6,9 @@ from sqlalchemy import (
     String,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from datetime import datetime
+from datetime import datetime, timedelta
+from sqlalchemy import DateTime
+
 
 from bot.db.base import Base
 
@@ -30,12 +32,14 @@ class Subscription(Base):
     __tablename__ = "subscriptions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    next_payment: Mapped[datetime]
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True)
+
+    next_payment: Mapped[datetime] = mapped_column(DateTime)
     status: Mapped[str] = mapped_column(String(32))
     period_days: Mapped[int] = mapped_column(Integer, default=30)
 
     user = relationship("User", back_populates="subscription")
+
 
 
 class Payment(Base):
