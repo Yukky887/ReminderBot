@@ -1,22 +1,39 @@
+version: '3.8'
+
 services:
   db:
     image: postgres:16
+    container_name: vpn_bot_postgres
     environment:
       POSTGRES_DB: vpn_bot
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      TZ: Europe/Moscow 
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    command: >
+      postgres 
+      -c log_timezone=Europe/Moscow
+      -c timezone=Europe/Moscow
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   bot:
     build: .
+    container_name: vpn_bot
     depends_on:
-      - db
+      db:
+        condition: service_healthy 
     env_file:
       - .env
+    environment:
+      TZ: Europe/Moscow
     restart: unless-stopped
 
 volumes:
-  pgdata: {}
+  postgres_data:

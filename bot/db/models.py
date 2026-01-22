@@ -6,9 +6,8 @@ from sqlalchemy import (
     String,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from datetime import datetime, timedelta
-from sqlalchemy import DateTime
-
+from datetime import datetime, timezone, timedelta
+from typing import Optional
 
 from bot.db.base import Base
 
@@ -18,13 +17,24 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True)
-    username: Mapped[str | None] = mapped_column(String(64))
+    username: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow
+        DateTime(timezone=True), default=lambda: datetime.now()
     )
 
-    subscription = relationship(
-        "Subscription", back_populates="user", uselist=False
+    # Добавляем связь с подпиской
+    subscription: Mapped[Optional["Subscription"]] = relationship(
+        "Subscription", 
+        back_populates="user", 
+        uselist=False,  # одна подписка на пользователя
+        cascade="all, delete-orphan"
+    )
+    
+    # Добавляем связь с платежами
+    payments: Mapped[list["Payment"]] = relationship(
+        "Payment", 
+        back_populates="user",
+        cascade="all, delete-orphan"
     )
 
 
@@ -33,13 +43,16 @@ class Subscription(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True)
-
-    next_payment: Mapped[datetime] = mapped_column(DateTime)
-    status: Mapped[str] = mapped_column(String(32))
+    next_payment: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(32), default="active")
     period_days: Mapped[int] = mapped_column(Integer, default=30)
-
-    user = relationship("User", back_populates="subscription")
-
+    last_reminder_sent: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), 
+        nullable=True
+    )
+    
+    # Обратная связь
+    user: Mapped["User"] = relationship("User", back_populates="subscription")
 
 
 class Payment(Base):
@@ -48,6 +61,10 @@ class Payment(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow
+        DateTime(timezone=True), 
+        default=lambda: datetime.now()
     )
     status: Mapped[str] = mapped_column(String(32))
+    
+    # Обратная связь
+    user: Mapped["User"] = relationship("User", back_populates="payments")

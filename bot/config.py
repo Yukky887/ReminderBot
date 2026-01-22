@@ -17,5 +17,8 @@ DATABASE_URL = (
     f"@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 )
 
+DATABASE_URL_ASYNCPG = os.getenv("DATABASE_URL_ASYNCPG")
+
+
 def is_admin(telegram_id: int) -> bool:
     return telegram_id == ADMIN_ID

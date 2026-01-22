@@ -40,7 +40,7 @@ async def activate_handler(message: Message, command: CommandObject):
             if not user:
                 user = User(
                     telegram_id=target_id,
-                    username=None,
+                    username=message.from_user.username if target_id == message.from_user.id else None,
                 )
                 session.add(user)
                 await session.commit()
@@ -53,10 +53,13 @@ async def activate_handler(message: Message, command: CommandObject):
                 )
                 user = result.scalar_one_or_none()
 
+            # ИСПРАВЛЕНО: используем datetime.now() без timezone.utc
+            now = datetime.now()
+            
             if user.subscription is None:
                 subscription = Subscription(
                     user_id=user.id,
-                    next_payment=datetime.utcnow() + timedelta(days=30),
+                    next_payment=now + timedelta(days=30),  # ← БУДЕТ MSK
                     status="active",
                     period_days=30,
                 )
@@ -72,7 +75,11 @@ async def activate_handler(message: Message, command: CommandObject):
                 )
                 user = result.scalar_one_or_none()
             else:
-                user.subscription.next_payment = datetime.utcnow() + timedelta(days=30)
+                if user.subscription.next_payment < now:
+                    user.subscription.next_payment = now + timedelta(days=30)
+                else:
+                    user.subscription.next_payment = user.subscription.next_payment + timedelta(days=30)
+                
                 user.subscription.status = "active"
                 await session.commit()
                 await session.refresh(user.subscription)
@@ -106,7 +113,7 @@ async def activate_handler(message: Message, command: CommandObject):
         except Exception as e:
             await message.answer(f"❌ Ошибка: {str(e)[:200]}")
             print(f"Error in activate: {e}")
-
+            
 @admin_router.message(Command("payments"))
 async def list_payments(message: Message):
     if message.from_user.id != ADMIN_ID:
@@ -211,7 +218,6 @@ async def find_user(message: Message, command: CommandObject):
 
         await message.answer(text)
 
-# В admin.py добавьте:
 @admin_router.message(Command("set_waiting"))
 async def set_waiting(message: Message, command: CommandObject):
     if message.from_user.id != ADMIN_ID:
