@@ -62,6 +62,11 @@ async def user_paid(callback: CallbackQuery):
             session.add(payment)
             await session.commit()
             payment_id = payment.id
+
+            try:
+                await callback.message.edit_reply_markup(reply_markup=None)
+            except Exception:
+                pass
             
             await callback.answer("✅ Заявка отправлена! Админ проверит оплату.")
             

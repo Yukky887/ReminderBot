@@ -1,7 +1,7 @@
 import asyncio
-from datetime import datetime, timedelta  
+from datetime import datetime, timezone, timedelta  
 from sqlalchemy import select, and_
-from sqlalchemy.orm import selectinload 
+from sqlalchemy.orm import selectinload
 import logging
 
 from bot.db.base import AsyncSessionLocal
@@ -21,20 +21,28 @@ async def subscription_watcher(bot):
     while True:
         try:
             async with AsyncSessionLocal() as session:
+                # ИСПРАВЛЕНО: используем timezone-aware datetime
                 now = datetime.now()
                 
                 # Находим подписки, по которым нужно отправить напоминание
                 result = await session.execute(
                     select(Subscription)
                     .join(User)
-                    .options(selectinload(Subscription.user))  # ← Теперь работает!
+                    .options(selectinload(Subscription.user))
                     .where(Subscription.status == "active")
                 )
                 
                 all_subs = result.scalars().all()
                 
                 for sub in all_subs:
-                    days_left = (sub.next_payment - now).days
+                    # Приводим next_payment к naive datetime если нужно
+                    next_payment_naive = sub.next_payment
+                    if sub.next_payment.tzinfo is not None:
+                        # Предполагаем что дата в базе в MSK (UTC+3)
+                        next_payment_naive = sub.next_payment.replace(tzinfo=None)
+                    
+                    # Теперь вычитаем правильно
+                    days_left = (next_payment_naive.date() - now.date()).days
                     
                     # Проверяем, нужно ли отправлять напоминание
                     should_remind = False
@@ -49,7 +57,13 @@ async def subscription_watcher(bot):
                     if should_remind:
                         # Проверяем, не отправляли ли уже напоминание сегодня
                         if sub.last_reminder_sent:
-                            last_sent_date = sub.last_reminder_sent.date()
+                            # Приводим last_reminder_sent к timezone-aware если нужно
+                            if sub.last_reminder_sent.tzinfo is None:
+                                last_sent_aware = sub.last_reminder_sent.replace(tzinfo=timezone.utc)
+                            else:
+                                last_sent_aware = sub.last_reminder_sent
+                            
+                            last_sent_date = last_sent_aware.date()
                             if last_sent_date == now.date():
                                 continue  # Уже отправляли сегодня
                         
@@ -90,10 +104,11 @@ async def subscription_watcher(bot):
                 result = await session.execute(
                     select(Subscription)
                     .join(User)
-                    .options(selectinload(Subscription.user))  # ← И здесь тоже!
+                    .options(selectinload(Subscription.user))
                     .where(
                         and_(
                             Subscription.status == "active",
+                            # Сравниваем timezone-aware даты
                             Subscription.next_payment < now
                         )
                     )

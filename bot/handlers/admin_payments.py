@@ -3,6 +3,7 @@ from aiogram.types import CallbackQuery
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta 
 import logging
 
 from bot.db.base import AsyncSessionLocal
@@ -51,9 +52,10 @@ async def confirm_payment(callback: CallbackQuery):
         now = datetime.now()
         if not user.subscription:
             # Создаем новую подписку
+            next_month = now + relativedelta(months=1)
             sub = Subscription(
                 user_id=user.id,
-                next_payment=now + timedelta(days=30),
+                next_payment=next_month,
                 status="active",
                 period_days=30,
                 last_reminder_sent=None
@@ -61,7 +63,7 @@ async def confirm_payment(callback: CallbackQuery):
             session.add(sub)
         else:
             # Продлеваем существующую подписку
-            user.subscription.next_payment = now + timedelta(days=30)
+            user.subscription.next_payment = user.subscription.next_payment + relativedelta(months=1)
             user.subscription.status = "active"
             user.subscription.last_reminder_sent = None  # Сбрасываем напоминания
         
