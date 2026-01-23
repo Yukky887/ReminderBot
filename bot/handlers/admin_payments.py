@@ -65,7 +65,7 @@ async def confirm_payment(callback: CallbackQuery):
             # Продлеваем существующую подписку
             user.subscription.next_payment = user.subscription.next_payment + relativedelta(months=1)
             user.subscription.status = "active"
-            user.subscription.last_reminder_sent = None  # Сбрасываем напоминания
+            user.subscription.last_reminder_sent = None
         
         payment.status = "confirmed"
         await session.commit()
@@ -82,8 +82,8 @@ async def confirm_payment(callback: CallbackQuery):
                 chat_id=user.telegram_id,
                 text=(
                     "✅ Ваш платеж подтвержден!\n\n"
-                    f"Подписка продлена до: {user.subscription.next_payment:%d.%m.%Y}\n"
-                    "Спасибо, что пользуетесь нашим сервисом! ✅"
+                    f"Подписка продлена на месяц. Следующий платеж: {user.subscription.next_payment:%d.%m.%Y}\n"
+                    "Спасибо!"
                 )
             )
             logger.info(f"✅ Платеж {payment_id} подтвержден для пользователя {user.telegram_id}")

@@ -53,13 +53,12 @@ async def activate_handler(message: Message, command: CommandObject):
                 )
                 user = result.scalar_one_or_none()
 
-            # ИСПРАВЛЕНО: используем datetime.now() без timezone.utc
             now = datetime.now()
             
             if user.subscription is None:
                 subscription = Subscription(
                     user_id=user.id,
-                    next_payment=now + timedelta(days=30),  # ← БУДЕТ MSK
+                    next_payment=now + timedelta(days=30),
                     status="active",
                     period_days=30,
                 )
@@ -102,9 +101,8 @@ async def activate_handler(message: Message, command: CommandObject):
                     await message.bot.send_message(
                         chat_id=target_id,
                         text=(
-                            "✅ Ваша подписка VPN активирована!\n\n"
-                            f"Следующий платёж: {user.subscription.next_payment:%d.%m.%Y}\n"
-                            "Спасибо, что пользуетесь нашим сервисом!"
+                            "✅ Ваша подписка активирована!\n\n"
+                            f"Следующий платёж: {user.subscription.next_payment:%d.%m.%Y}"
                         )
                     )
                 except Exception as e:
@@ -217,76 +215,3 @@ async def find_user(message: Message, command: CommandObject):
             text += f"Статус: {user.subscription.status}"
 
         await message.answer(text)
-
-@admin_router.message(Command("set_waiting"))
-async def set_waiting(message: Message, command: CommandObject):
-    if message.from_user.id != ADMIN_ID:
-        return
-    
-    if not command.args:
-        await message.answer("Используйте: /set_waiting <ID_пользователя>")
-        return
-    
-    try:
-        user_id = int(command.args.strip())
-        
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(User)
-                .options(selectinload(User.subscription))
-                .where(User.telegram_id == user_id)
-            )
-            user = result.scalar_one_or_none()
-            
-            if not user:
-                await message.answer("Пользователь не найден")
-                return
-            
-            if not user.subscription:
-                await message.answer("У пользователя нет подписки")
-                return
-            
-            user.subscription.status = "waiting"
-            await session.commit()
-            
-            await message.answer(f"✅ Статус пользователя {user_id} изменен на 'waiting'")
-            
-            # Уведомляем пользователя
-            try:
-                await message.bot.send_message(
-                    chat_id=user_id,
-                    text="💰 Пора оплатить VPN подписку!\n"
-                         "Нажмите кнопку 'Я оплатил' после оплаты."
-                )
-            except:
-                pass
-                
-    except ValueError:
-        await message.answer("❌ Неверный формат ID")
-
-@admin_router.message(Command("send_pay_button"))
-async def send_pay_button(message: Message, command: CommandObject):
-    if message.from_user.id != ADMIN_ID:
-        return
-    
-    if not command.args:
-        await message.answer("Используйте: /send_pay_button <ID_пользователя>")
-        return
-    
-    try:
-        user_id = int(command.args.strip())
-        
-        # Отправляем кнопку пользователю
-        try:
-            await message.bot.send_message(
-                chat_id=user_id,
-                text="💳 Оплата VPN\n\n"
-                     "Нажмите кнопку ниже после оплаты:",
-                reply_markup=pay_keyboard
-            )
-            await message.answer(f"✅ Кнопка оплаты отправлена пользователю {user_id}")
-        except Exception as e:
-            await message.answer(f"❌ Не удалось отправить: {str(e)[:100]}")
-            
-    except ValueError:
-        await message.answer("❌ Неверный формат ID")

@@ -65,5 +65,6 @@ class Payment(Base):
         default=lambda: datetime.now()
     )
     status: Mapped[str] = mapped_column(String(32))
+    
     # Обратная связь
     user: Mapped["User"] = relationship("User", back_populates="payments")

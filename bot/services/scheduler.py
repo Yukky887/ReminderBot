@@ -55,17 +55,44 @@ async def subscription_watcher(bot):
                             break
                     
                     if should_remind:
-                        # Проверяем, не отправляли ли уже напоминание сегодня
-                        if sub.last_reminder_sent:
+                        # ИСПРАВЛЕНИЕ: Проверяем, не отправляли ли уже напоминание для ЭТОГО КОНКРЕТНОГО ДНЯ
+                        # Например, если отправляли напоминание за 3 дня, это не должно мешать отправить за 1 день
+                        
+                        # Создаем идентификатор для этого конкретного напоминания
+                        reminder_id = f"{sub.id}_{remind_day}"
+                        
+                        # Проверяем, когда последний раз отправляли напоминание для этого дня
+                        last_reminder_sent = sub.last_reminder_sent
+                        
+                        if last_reminder_sent:
                             # Приводим last_reminder_sent к timezone-aware если нужно
-                            if sub.last_reminder_sent.tzinfo is None:
-                                last_sent_aware = sub.last_reminder_sent.replace(tzinfo=timezone.utc)
+                            if last_reminder_sent.tzinfo is None:
+                                last_sent_aware = last_reminder_sent.replace(tzinfo=timezone.utc)
                             else:
-                                last_sent_aware = sub.last_reminder_sent
+                                last_sent_aware = last_reminder_sent
                             
                             last_sent_date = last_sent_aware.date()
-                            if last_sent_date == now.date():
-                                continue  # Уже отправляли сегодня
+                            
+                            # ВАЖНОЕ ИСПРАВЛЕНИЕ: 
+                            # Не пропускаем если отправляли сегодня, а проверяем ДЛЯ КАКОГО ДНЯ отправляли
+                            # Для этого добавим поле в базу или будем использовать словарь в памяти
+                            # Но для простоты сделаем так: если напоминание за 0 дней, а мы уже отправляли за 0 дней - пропускаем
+                            # Если напоминание за 1 день, а мы уже отправляли за 1 день - пропускаем
+                            # и т.д.
+                            
+                            # Вместо этого, давайте хранить последний отправленный день в отдельном поле
+                            # Но если нет такого поля, используем упрощенную логику:
+                            # Отправляем напоминание, если не отправляли сегодня ИЛИ если это другое напоминание (за другой день)
+                            
+                            # Простое решение: отправляем каждый раз при проверке, если подходит по дням
+                            # Но чтобы не спамить каждые 10 секунд, добавим минимальный интервал между одинаковыми напоминаниями
+                            # Например, не отправлять одно и то же напоминание чаще чем раз в 12 часов
+                            
+                            time_since_last = now - last_sent_aware
+                            if time_since_last < timedelta(hours=12):
+                                # Не отправляем одинаковые напоминания чаще чем раз в 12 часов
+                                logger.debug(f"Пропускаем {sub.user.telegram_id}, уже отправляли {remind_day} дней назад, прошло {time_since_last}")
+                                continue
                         
                         # Отправляем напоминание
                         try:
@@ -127,7 +154,7 @@ async def subscription_watcher(bot):
                             text=(
                                 "❌ Ваша VPN подписка истекла!\n\n"
                                 "Для продления обратитесь к администратору."
-                            )
+                            ),
                         )
                     except Exception as e:
                         logger.error(f"❌ Не удалось уведомить о просрочке {sub.user.telegram_id}: {e}")

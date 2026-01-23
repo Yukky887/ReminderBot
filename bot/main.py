@@ -7,7 +7,7 @@ from aiogram.enums import ParseMode
 
 from bot.config import BOT_TOKEN, DATABASE_URL
 from bot.db.base import engine, Base
-from bot.db import models  # 👈 ОБЯЗАТЕЛЬНО
+from bot.db import models  
 
 from bot.handlers.start import router as start_router
 from bot.handlers.payments import payments_router 
