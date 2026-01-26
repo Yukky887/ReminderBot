@@ -3,7 +3,7 @@ from aiogram.types import Message
 from aiogram.filters import Command, CommandObject
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from bot.config import ADMIN_ID
 from bot.db.base import AsyncSessionLocal
@@ -17,19 +17,21 @@ async def activate_handler(message: Message, command: CommandObject):
         await message.answer("❌ У вас нет прав администратора.")
         return
 
-    if not command.args:
-        target_id = message.from_user.id
-        target_user = "вашу"
-    else:
+    # Кого активируем
+    if command.args:
         try:
             target_id = int(command.args.strip())
-            target_user = f"пользователя {target_id}"
+            target_user_text = f"пользователю {target_id}"
         except ValueError:
-            await message.answer("❌ Неверный формат ID. Используйте: /activate <ID_пользователя>")
+            await message.answer("❌ Используй: /activate <telegram_id>")
             return
+    else:
+        target_id = message.from_user.id
+        target_user_text = "вам"
 
     async with AsyncSessionLocal() as session:
         try:
+            # Ищем пользователя
             result = await session.execute(
                 select(User)
                 .options(selectinload(User.subscription))
@@ -37,6 +39,7 @@ async def activate_handler(message: Message, command: CommandObject):
             )
             user = result.scalar_one_or_none()
 
+            # Если нет — создаём
             if not user:
                 user = User(
                     telegram_id=target_id,
@@ -45,72 +48,61 @@ async def activate_handler(message: Message, command: CommandObject):
                 session.add(user)
                 await session.commit()
                 await session.refresh(user)
-                
-                result = await session.execute(
-                    select(User)
-                    .options(selectinload(User.subscription))
-                    .where(User.id == user.id)
-                )
-                user = result.scalar_one_or_none()
 
-            now = datetime.now()
-            
-            if user.subscription is None:
+            now = datetime.now(timezone.utc)
+
+            # Если нет подписки — создаём
+            if not user.subscription:
                 subscription = Subscription(
                     user_id=user.id,
-                    next_payment=now + timedelta(days=30),
                     status="active",
                     period_days=30,
+                    next_payment=now + timedelta(days=30),
                 )
                 session.add(subscription)
                 await session.commit()
                 await session.refresh(subscription)
-                
-                await session.refresh(user)
-                result = await session.execute(
-                    select(User)
-                    .options(selectinload(User.subscription))
-                    .where(User.id == user.id)
-                )
-                user = result.scalar_one_or_none()
+
             else:
-                if user.subscription.next_payment < now:
-                    user.subscription.next_payment = now + timedelta(days=30)
+                sub = user.subscription
+
+                # Гарантируем timezone-aware
+                if sub.next_payment.tzinfo is None:
+                    sub.next_payment = sub.next_payment.replace(tzinfo=timezone.utc)
+
+                # Если просрочена — стартуем заново
+                if sub.next_payment < now:
+                    sub.next_payment = now + timedelta(days=30)
                 else:
-                    user.subscription.next_payment = user.subscription.next_payment + timedelta(days=30)
-                
-                user.subscription.status = "active"
+                    sub.next_payment += timedelta(days=30)
+
+                sub.status = "active"
                 await session.commit()
-                await session.refresh(user.subscription)
 
-            if user.subscription is None:
-                await message.answer("❌ Ошибка: не удалось создать/обновить подписку")
-                return
+            sub = user.subscription
 
-            response = (
-                f"✅ Подписка {target_user} активирована!\n"
+            await message.answer(
+                f"✅ Подписка {target_user_text} активирована\n\n"
                 f"ID: {user.telegram_id}\n"
-                f"Следующий платёж: {user.subscription.next_payment:%d.%m.%Y}\n"
-                f"Статус: {user.subscription.status}"
+                f"Следующий платёж: {sub.next_payment:%d.%m.%Y}\n"
+                f"Статус: {sub.status}"
             )
-            
-            await message.answer(response)
 
+            # Уведомляем пользователя
             if target_id != message.from_user.id:
                 try:
                     await message.bot.send_message(
                         chat_id=target_id,
                         text=(
-                            "✅ Ваша подписка активирована!\n\n"
-                            f"Следующий платёж: {user.subscription.next_payment:%d.%m.%Y}"
+                            "✅ Ваша VPN подписка активирована!\n\n"
+                            f"Следующий платёж: {sub.next_payment:%d.%m.%Y}"
                         )
                     )
-                except Exception as e:
-                    await message.answer(f"⚠️ Не удалось отправить уведомление: {str(e)[:100]}")
-                    
+                except Exception:
+                    pass
+
         except Exception as e:
             await message.answer(f"❌ Ошибка: {str(e)[:200]}")
-            print(f"Error in activate: {e}")
             
 @admin_router.message(Command("payments"))
 async def list_payments(message: Message):

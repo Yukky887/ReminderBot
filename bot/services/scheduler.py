@@ -9,7 +9,7 @@ from bot.db.models import Subscription, User
 from bot.keyboards.payment import pay_keyboard
 
 # Константы
-CHECK_INTERVAL = 10  # Проверяем каждые 10 секунд
+CHECK_INTERVAL = 86400  # Проверяем каждые 10 секунд
 REMIND_BEFORE_DAYS = [3, 1, 0]  # Напоминаем за 3, 1 и 0 дней до платежа
 
 logger = logging.getLogger(__name__)

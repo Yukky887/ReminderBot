@@ -21,5 +21,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копируем весь проект
 COPY . .
 
+ENV PYTHONUNBUFFERED=1
+
 # Команда для старта бота
 CMD ["python", "-m", "bot.main"]
