@@ -22,7 +22,8 @@ async def subscription_watcher(bot):
         try:
             async with AsyncSessionLocal() as session:
                 # ИСПРАВЛЕНО: используем timezone-aware datetime
-                now = datetime.now()
+                now = datetime.now(timezone.utc)
+                today = now.date()
                 
                 # Находим подписки, по которым нужно отправить напоминание
                 result = await session.execute(
@@ -42,7 +43,7 @@ async def subscription_watcher(bot):
                         next_payment_naive = sub.next_payment.replace(tzinfo=None)
                     
                     # Теперь вычитаем правильно
-                    days_left = (next_payment_naive.date() - now.date()).days
+                    days_left = (sub.next_payment.date() - today).days
                     
                     # Проверяем, нужно ли отправлять напоминание
                     should_remind = False
@@ -136,7 +137,12 @@ async def subscription_watcher(bot):
                         and_(
                             Subscription.status == "active",
                             # Сравниваем timezone-aware даты
-                            Subscription.next_payment < now
+                            Subscription.next_payment < datetime.combine(
+                                today,
+                                datetime.min.time(),
+                                tzinfo=timezone.utc
+                            )
+
                         )
                     )
                 )
